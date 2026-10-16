@@ -5,12 +5,11 @@ from html import escape
 from typing import Any
 
 import streamlit as st
-from streamlit.components.v1 import html as component_html
 
 from voicehire.interviewer import Interviewer
 from voicehire.resume_parser import extract_resume_text
 from voicehire.schemas import FeedbackReport, InterviewQuestion
-from voicehire.speech_output import speech_button
+from voicehire.speech_output import speak
 from voicehire.transcription import transcribe_audio
 
 st.set_page_config(page_title="VoiceHire | Interview practice", page_icon="🎙️", layout="wide")
@@ -149,13 +148,28 @@ def render_interview(interviewer: Interviewer) -> None:
     question = InterviewQuestion.model_validate(questions[idx])
     st.progress(idx / total, text=f"Question {idx + 1} of {total}")
     st.markdown(f'<div class="question-card"><div class="eyebrow">{escape(question.category)} · {escape(question.difficulty)}</div><h3>{escape(question.prompt)}</h3><div class="muted">{escape(question.intent)}</div></div>', unsafe_allow_html=True)
-    component_html(speech_button(question.prompt), height=58, scrolling=False)
-    st.caption("Listen, record your answer or type one below. Review the transcript before submitting.")
-    voice = st.audio_input("Record your answer", sample_rate=16000, key=f"voice_{idx}")
-    if voice and st.button("Transcribe recording", key=f"transcribe_{idx}"):
+    if st.button("🔊 Hear this question", key=f"hear_{idx}"):
+        try:
+            with st.spinner("Preparing the local voice… first use downloads the voice model (about 64 MB)."):
+                st.session_state[f"question_audio_{idx}"] = speak(question.prompt)
+        except Exception as exc:
+            st.error(f"Could not prepare local speech: {exc}")
+    if st.session_state.get(f"question_audio_{idx}"):
+        st.audio(st.session_state[f"question_audio_{idx}"], format="audio/wav")
+    uploaded_audio = st.file_uploader(
+        "Upload a voice recording",
+        type=["wav", "mp3", "m4a", "ogg", "webm"],
+        key=f"audio_file_{idx}",
+        help="WAV, MP3, M4A, OGG, or WebM · a recording from your computer or phone.",
+    )
+    with st.expander("Record directly with your browser microphone"):
+        st.caption("This needs browser permission and a connected microphone. If recording errors, use the upload above.")
+        voice = st.audio_input("Record your answer", sample_rate=16000, key=f"voice_{idx}")
+    audio_bytes = voice.getvalue() if voice else uploaded_audio.getvalue() if uploaded_audio else None
+    if audio_bytes and st.button("Transcribe answer locally", key=f"transcribe_{idx}"):
         try:
             with st.spinner("Transcribing locally… the first run downloads the speech model."):
-                transcript = transcribe_audio(voice.getvalue())
+                transcript = transcribe_audio(audio_bytes)
                 st.session_state[f"transcript_{idx}"] = transcript
                 st.session_state[f"answer_{idx}"] = transcript
             st.rerun()

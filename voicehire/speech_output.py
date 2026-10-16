@@ -1,52 +1,72 @@
 from __future__ import annotations
 
-import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
 
-def speech_button(text: str) -> str:
-    """Render a browser speech button restricted to voices installed locally."""
-    encoded_text = json.dumps(text, ensure_ascii=True).replace("<", "\\u003c")
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <style>
-    * {{ box-sizing: border-box; }}
-    body {{ margin: 0; font-family: Inter, 'Segoe UI', sans-serif; color: #17201f; }}
-    button {{ border: 1px solid #d7e1dd; border-radius: 10px; padding: 10px 14px;
-      background: #fff; color: #173a35; font: 600 14px Inter, 'Segoe UI', sans-serif;
-      cursor: pointer; }}
-    button:hover {{ background: #e9f4ef; border-color: #0d766e; }}
-    button:focus-visible {{ outline: 3px solid #0d766e; outline-offset: 2px; }}
-    #status {{ margin-left: 10px; color: #586662; font-size: 12px; }}
-  </style>
-</head>
-<body>
-  <button id="speak" type="button">🔊 Hear this question</button>
-  <span id="status" role="status" aria-live="polite"></span>
-  <script>
-    const questionText = {encoded_text};
-    const status = document.getElementById('status');
-    document.getElementById('speak').addEventListener('click', () => {{
-      if (!('speechSynthesis' in window)) {{
-        status.textContent = 'Speech playback is not supported by this browser.';
-        return;
-      }}
-      const voices = window.speechSynthesis.getVoices();
-      const localVoices = voices.filter((voice) => voice.localService);
-      if (!localVoices.length) {{
-        status.textContent = 'Install a local system voice to hear questions.';
-        return;
-      }}
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(questionText);
-      utterance.voice = localVoices.find((voice) => voice.lang.toLowerCase().startsWith('en')) || localVoices[0];
-      utterance.rate = 0.96;
-      utterance.onstart = () => {{ status.textContent = 'Speaking…'; }};
-      utterance.onend = () => {{ status.textContent = ''; }};
-      utterance.onerror = () => {{ status.textContent = 'Could not play the local voice.'; }};
-      window.speechSynthesis.speak(utterance);
-    }});
-  </script>
-</body>
-</html>"""
+VOICE_NAME = os.getenv("VOICEHIRE_PIPER_VOICE", "en_US-lessac-medium")
+VOICE_DIR = Path(__file__).resolve().parents[1] / "data" / "voices"
+
+
+def _voice_model_path() -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", VOICE_NAME):
+        raise ValueError("VOICEHIRE_PIPER_VOICE contains unsupported characters.")
+    model_path = VOICE_DIR / f"{VOICE_NAME}.onnx"
+    config_path = VOICE_DIR / f"{VOICE_NAME}.onnx.json"
+    if model_path.is_file() and config_path.is_file():
+        return model_path
+
+    VOICE_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "piper.download_voices", VOICE_NAME, "--download-dir", str(VOICE_DIR)],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.CalledProcessError as exc:
+        details = (exc.stderr or exc.stdout or str(exc)).strip()
+        raise RuntimeError(f"Could not download the local Piper voice: {details[-1000:]}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("The voice download timed out. Check your internet connection and try again.") from exc
+    if not model_path.is_file() or not config_path.is_file():
+        raise RuntimeError("Piper finished without creating both voice files. Please try again.")
+    return model_path
+
+
+def speak(text: str) -> bytes:
+    """Synthesize question audio with Piper's local command-line voice engine."""
+    model_path = _voice_model_path()
+    with tempfile.TemporaryDirectory(prefix="voicehire-") as temp_dir:
+        wav_path = Path(temp_dir) / "question.wav"
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "piper",
+                    "--model",
+                    str(model_path),
+                    "--output-file",
+                    str(wav_path),
+                    "--",
+                    text,
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("Local speech synthesis timed out. Try again or use a shorter question.") from exc
+        if result.returncode != 0:
+            details = (result.stderr or result.stdout or "Piper returned an error.").strip()
+            raise RuntimeError(details[-1000:])
+        if not wav_path.is_file():
+            raise RuntimeError("Piper did not produce the question audio file.")
+        return wav_path.read_bytes()
