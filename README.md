@@ -32,7 +32,7 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements.txt
-ollama pull qwen3.5:4b
+ollama pull llama3.2:latest
 streamlit run app.py
 ```
 
@@ -42,11 +42,11 @@ On macOS/Linux, create and activate `.venv` with the platform's `python3 -m venv
 
 ### Model and environment options
 
-The default model is `qwen3.5:4b`. If it is too slow or memory hungry, try `qwen3.5:2b`:
+The default model is `llama3.2:latest`. Set `OLLAMA_MODEL` to any model available in your local `ollama list` output if you prefer another one. For example, to use Qwen instead:
 
 ```powershell
-ollama pull qwen3.5:2b
-$env:OLLAMA_MODEL = "qwen3.5:2b"
+ollama pull qwen3.5:4b
+$env:OLLAMA_MODEL = "qwen3.5:4b"
 streamlit run app.py
 ```
 

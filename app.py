@@ -64,7 +64,7 @@ def sidebar() -> str:
         st.markdown("**Your setup**")
         st.caption(f"Role · {st.session_state.role or 'Not selected'}")
         st.caption(f"Resume · {st.session_state.resume_name or 'Not uploaded'}")
-        st.caption(f"Model · {os.getenv('OLLAMA_MODEL', 'qwen3.5:4b')}")
+        st.caption(f"Model · {os.getenv('OLLAMA_MODEL', 'llama3.2:latest')}")
         if st.button("Start a fresh interview", use_container_width=True):
             reset_interview()
             st.rerun()
@@ -232,7 +232,7 @@ def render_feedback(interviewer: Interviewer) -> None:
 def main() -> None:
     init_state()
     step = sidebar()
-    interviewer = Interviewer(os.getenv("OLLAMA_HOST", "http://localhost:11434"), os.getenv("OLLAMA_MODEL", "qwen3.5:4b"))
+    interviewer = Interviewer(os.getenv("OLLAMA_HOST", "http://localhost:11434"), os.getenv("OLLAMA_MODEL", "llama3.2:latest"))
     st.markdown('<div class="hero"><div class="eyebrow">Your private interview practice studio</div><h1>Show up ready.</h1><p>Practice with a role-aware interviewer, answer in your own words, and leave with a clear plan to improve.</p></div>', unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     for col, label, value in [(c1, "TARGET ROLE", st.session_state.role or "Not set"), (c2, "ANSWERS PRACTISED", f"{len(st.session_state.answers)} recorded"), (c3, "SESSION", "Local & private")]:
