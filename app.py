@@ -1,25 +1,29 @@
 from __future__ import annotations
 
 import os
+from html import escape
 from typing import Any
 
 import streamlit as st
+from streamlit.components.v1 import html as component_html
 
 from voicehire.interviewer import Interviewer
 from voicehire.resume_parser import extract_resume_text
 from voicehire.schemas import FeedbackReport, InterviewQuestion
-from voicehire.speech_output import speak
+from voicehire.speech_output import speech_button
 from voicehire.transcription import transcribe_audio
 
 st.set_page_config(page_title="VoiceHire | Interview practice", page_icon="🎙️", layout="wide")
 st.markdown("""
 <style>
 :root { --ink:#17201f; --muted:#6d7976; --teal:#0d766e; --paper:#f5f7f4; }
-.stApp { background:var(--paper); color:var(--ink); font-family:Inter,'Segoe UI',sans-serif; }
+.stApp { background:var(--paper); color:var(--ink); font-family:Inter,'Segoe UI',sans-serif; overflow-x:clip; }
 [data-testid="stHeader"] { background:transparent; }
-.block-container { padding-top:2rem; max-width:1240px; }
+.block-container { box-sizing:border-box; width:calc(100% - 1rem); padding:2rem 1.5rem; max-width:1240px; min-width:0; }
+[data-testid="stAppViewContainer"], section.main, .stMainBlockContainer { box-sizing:border-box; max-width:100%; min-width:0; }
 h1,h2,h3 { font-family:'Manrope',sans-serif !important; letter-spacing:-.035em; }
 h1 { font-size:2.45rem !important; }
+[data-testid="stWidgetLabel"] p, [data-testid="stCaptionContainer"] p { color:#44514e !important; }
 [data-testid="stSidebar"] { background:#102a27; }
 [data-testid="stSidebar"] * { color:#e6f2ee !important; }
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { color:#b8ccc7 !important; }
@@ -28,13 +32,19 @@ h1 { font-size:2.45rem !important; }
 .hero h1 { color:white; margin:.3rem 0 .45rem; }
 .hero p { color:#d0e5df; max-width:700px; font-size:1.02rem; }
 .hero .eyebrow { color:#a8e1ce; }
-.question-card { background:white; border-left:5px solid #0d766e; border-radius:14px; padding:1.1rem 1.35rem; margin:.8rem 0 1.2rem; box-shadow:0 8px 28px rgba(20,45,39,.05); }
+.question-card { box-sizing:border-box; width:100%; max-width:100%; min-width:0; overflow-wrap:anywhere; background:white; border-left:5px solid #0d766e; border-radius:14px; padding:1.1rem 1.35rem; margin:.8rem 0 1.2rem; box-shadow:0 8px 28px rgba(20,45,39,.05); }
+.question-card h3 { max-width:100%; min-width:0; white-space:normal; overflow-wrap:anywhere; word-break:normal; }
 .metric-card { background:white; border:1px solid #e5ebe7; padding:1rem; border-radius:15px; min-height:95px; }
 .muted { color:var(--muted); }
 div.stButton > button[kind="primary"] { background:#0d766e; border-color:#0d766e; border-radius:10px; font-weight:700; }
 div.stButton > button { border-radius:10px; }
 [data-testid="stForm"] { background:#fff; border:1px solid #e5ebe7; border-radius:15px; padding:1.1rem; }
 hr { border-color:#e0e8e4; }
+@media (max-width:640px) {
+  .block-container { padding:1.25rem .9rem 2rem; }
+  h1 { font-size:1.9rem !important; }
+  .question-card { padding:1rem; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -138,16 +148,8 @@ def render_interview(interviewer: Interviewer) -> None:
         return
     question = InterviewQuestion.model_validate(questions[idx])
     st.progress(idx / total, text=f"Question {idx + 1} of {total}")
-    st.markdown(f'<div class="question-card"><div class="eyebrow">{question.category} · {question.difficulty}</div><h3>{question.prompt}</h3><div class="muted">{question.intent}</div></div>', unsafe_allow_html=True)
-    if st.button("🔊 Hear this question", key=f"hear_{idx}"):
-        try:
-            with st.spinner("Preparing question audio on this computer…"):
-                st.session_state[f"question_audio_{idx}"] = speak(question.prompt)
-            st.rerun()
-        except Exception as exc:
-            st.error(f"Could not prepare speech audio: {exc}")
-    if st.session_state.get(f"question_audio_{idx}"):
-        st.audio(st.session_state[f"question_audio_{idx}"], format="audio/wav")
+    st.markdown(f'<div class="question-card"><div class="eyebrow">{escape(question.category)} · {escape(question.difficulty)}</div><h3>{escape(question.prompt)}</h3><div class="muted">{escape(question.intent)}</div></div>', unsafe_allow_html=True)
+    component_html(speech_button(question.prompt), height=58, scrolling=False)
     st.caption("Listen, record your answer or type one below. Review the transcript before submitting.")
     voice = st.audio_input("Record your answer", sample_rate=16000, key=f"voice_{idx}")
     if voice and st.button("Transcribe recording", key=f"transcribe_{idx}"):

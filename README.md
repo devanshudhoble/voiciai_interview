@@ -21,7 +21,7 @@ The feedback is practice guidance, not an objective measure of ability or a hiri
 - [Ollama](https://ollama.com/download) installed and running
 - About 4 GB of free disk for the default language model, plus room for the speech model and Python packages
 - A microphone for voice answers; typed answers also work
-- An installed operating-system voice for spoken questions (Windows SAPI, macOS say, or Linux speech engine)
+- A browser with speech synthesis and at least one locally installed voice for spoken questions
 
 ## Run on Windows with VS Code
 
@@ -55,7 +55,7 @@ VoiceHire uses Ollama at `http://localhost:11434` by default. To change the endp
 ## App workflow
 
 1. **Prepare:** Upload a text-based resume or paste resume text. Add the target job title and, optionally, its description.
-2. **Interview:** Generate five questions, listen to them using your computer's installed speech voice, then answer using your microphone or the text box. Voice transcription is editable before submission. Ollama can ask a focused follow-up when an answer needs more evidence.
+2. **Interview:** Generate five questions, listen with your browser's installed local voice, then answer using your microphone or the text box. Voice transcription is editable before submission. Ollama can ask a focused follow-up when an answer needs more evidence.
 3. **Feedback:** Generate the report, review its scores and notes, edit the Markdown, check the approval box, and download it.
 
 The first voice transcription downloads the `base.en` speech model. Scanned image-only PDFs are not OCR'd in this version; paste their text or use a text-based PDF.
@@ -87,7 +87,7 @@ voicehire/interviewer.py    Ollama prompts, question generation, evaluations, re
 voicehire/schemas.py        Pydantic data contracts and report rendering
 voicehire/resume_parser.py  PDF, DOCX, and TXT text extraction
 voicehire/transcription.py  Lazy-loaded local faster-whisper model
-voicehire/speech_output.py  Local system text-to-speech for questions
+voicehire/speech_output.py  Browser speech button using a local voice
 docs/                       Architecture and end-to-end flow
 ```
 
